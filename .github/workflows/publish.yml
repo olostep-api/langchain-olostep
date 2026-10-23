@@ -47,3 +47,5 @@ jobs:
         run: pip install build && python -m build
       - if: steps.check.outputs.publish == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
