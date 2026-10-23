@@ -21,7 +21,7 @@ from .tools import (
     crawl_website,
 )
 
-__version__ = "0.3.3"
+__version__ = "0.3.4"
 __all__ = [
     "scrape_website",
     "scrape_batch",
