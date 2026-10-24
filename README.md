@@ -138,8 +138,12 @@ print(result)
 
 ## Usage with LangChain Agent
 
+```bash
+pip install langchain langchain-openai langchain-olostep
+```
+
 ```python
-from langchain.agents import initialize_agent, AgentType
+from langchain.agents import create_agent
 from langchain_openai import ChatOpenAI
 from langchain_olostep import (
     scrape_website,
@@ -149,68 +153,78 @@ from langchain_olostep import (
 
 # Create agent with Olostep tools
 tools = [scrape_website, answer_question, extract_urls]
-llm = ChatOpenAI(model="gpt-4o-mini")
-
-agent = initialize_agent(
+agent = create_agent(
+    model=ChatOpenAI(model="gpt-4o-mini"),
     tools=tools,
-    llm=llm,
-    agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-    verbose=True
 )
 
 # Use the agent
-result = agent.run("""
+result = agent.invoke({
+    "messages": [{
+        "role": "user",
+        "content": """
 Research the company at https://company.com:
 1. Scrape their about page
 2. Search for their latest funding round
 3. Extract all their product pages
-""")
+""",
+    }]
+})
 
-print(result)
+print(result["messages"][-1].content)
 ```
 
 ## Usage with LangGraph
 
 ```python
+import json
+from typing import Any, TypedDict
+
 from langgraph.graph import StateGraph, END
 from langchain_olostep import (
-    scrape_website,
+    scrape_batch,
     answer_question,
     extract_urls
 )
-from langchain_openai import ChatOpenAI
+
+
+class ResearchState(TypedDict, total=False):
+    target_url: str
+    research_question: str
+    desired_format: dict
+    urls: list[str]
+    batch_id: str
+    answer: Any
+
 
 # Build a research agent workflow
 def create_research_agent():
-    workflow = StateGraph(dict)
+    workflow = StateGraph(ResearchState)
     
-    def discover_pages(state):
+    def discover_pages(state: ResearchState):
         # Extract all URLs from target site
         result = extract_urls.invoke({
             "url": state["target_url"],
             "include_urls": ["/product/**"],
             "top_n": 50
         })
-        state["urls"] = json.loads(result)["urls"]
-        return state
+        return {"urls": json.loads(result)["urls"]}
     
-    def scrape_pages(state):
+    def scrape_pages(state: ResearchState):
         # Scrape discovered pages in batch
         result = scrape_batch.invoke({
             "urls": state["urls"],
             "format": "markdown"
         })
-        state["batch_id"] = json.loads(result)["batch_id"]
-        return state
+        return {"batch_id": json.loads(result)["batch_id"]}
     
-    def answer_questions(state):
+    def answer_questions(state: ResearchState):
         # Use AI to answer questions about the data
         result = answer_question.invoke({
             "task": state["research_question"],
             "json_schema": state["desired_format"]
         })
-        state["answer"] = json.loads(result)["answer"]
-        return state
+        return {"answer": json.loads(result)["answer"]}
     
     workflow.add_node("discover", discover_pages)
     workflow.add_node("scrape", scrape_pages)
@@ -410,7 +424,7 @@ Visit https://olostep.com/pricing for details.
 ## Support
 
 - Documentation: https://docs.olostep.com
-- Issues: GitHub Issues
+- Issues: https://github.com/olostep-api/langchain-olostep/issues
 - Email: info@olostep.com
 
 ## Links

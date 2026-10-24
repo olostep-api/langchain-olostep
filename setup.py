@@ -17,7 +17,7 @@ requirements = [
 
 setup(
     name="langchain-olostep",
-    version="0.3.0",
+    version="0.3.4",
     author="Olostep",
     author_email="info@olostep.com",
     description="The most reliable and cost-effective web search, scraping and crawling API for AI. Build intelligent agents that can search, scrape, analyze, and structure data from any website.",

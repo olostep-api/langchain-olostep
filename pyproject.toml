@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "langchain-olostep"
-version = "0.3.3"
+version = "0.3.4"
 description = "The most reliable and cost-effective web search, scraping and crawling API for AI. Build intelligent agents that can search, scrape, analyze, and structure data from any website."
 readme = "README.md"
 requires-python = ">=3.9"
