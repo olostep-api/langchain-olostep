@@ -17,13 +17,13 @@ requirements = [
 
 setup(
     name="langchain-olostep",
-    version="0.3.4",
+    version="0.3.5",
     author="Olostep",
     author_email="info@olostep.com",
-    description="The most reliable and cost-effective web search, scraping and crawling API for AI. Build intelligent agents that can search, scrape, analyze, and structure data from any website.",
+    description="Live web search, scraping and crawling API for AI. Get structured, LLM-ready data from any site. Scale to 1M requests in a single batch at low cost.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/olostep-api/langchain-olostep",
+    url="https://www.olostep.com",
     project_urls={
         "Bug Reports": "https://github.com/olostep-api/langchain-olostep/issues",
         "Source": "https://github.com/olostep-api/langchain-olostep",

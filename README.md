@@ -1,8 +1,8 @@
 # LangChain Olostep Integration
 
-**The most reliable and cost-effective web search, scraping and crawling API for AI.**
+**Live web search, scraping and crawling API for AI. Get structured, LLM-ready data from any site. Scale to 1M requests in a single batch at low cost.**
 
-Build intelligent agents that can search, scrape, analyze, and structure data from any website. Perfect for LangChain and LangGraph applications.
+[Olostep](https://www.olostep.com) is web data infrastructure for AI. It provides live web search, scraping and crawling API to extract and structure data. This package brings Olostep to LangChain and LangGraph agents.
 
 ## Features
 
@@ -427,12 +427,16 @@ Visit https://olostep.com/pricing for details.
 - Issues: https://github.com/olostep-api/langchain-olostep/issues
 - Email: info@olostep.com
 
+## About Olostep
+
+[Olostep](https://www.olostep.com) is web data infrastructure for AI. It provides live web search, scraping and crawling API to extract and structure data, used in production by AI companies to give their agents fresh, LLM-ready web data at scale.
+
 ## Links
 
+- Website: https://www.olostep.com
 - PyPI: https://pypi.org/project/langchain-olostep/
 - Documentation: https://docs.olostep.com/integrations/langchain
 - Dashboard: https://olostep.com/dashboard
-- Website: https://olostep.com
 
 ## License
 
