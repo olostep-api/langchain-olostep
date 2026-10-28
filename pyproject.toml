@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "langchain-olostep"
-version = "0.3.4"
-description = "The most reliable and cost-effective web search, scraping and crawling API for AI. Build intelligent agents that can search, scrape, analyze, and structure data from any website."
+version = "0.3.5"
+description = "Live web search, scraping and crawling API for AI. Get structured, LLM-ready data from any site. Scale to 1M requests in a single batch at low cost."
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [
     {name = "Olostep", email = "info@olostep.com"}
 ]
-keywords = ["langchain", "langgraph", "web-scraping", "web-search", "crawling", "olostep", "ai", "llm", "agents"]
+keywords = ["langchain", "langgraph", "web-scraping", "web-search", "crawling", "olostep", "ai", "llm", "agents", "web-data", "web-crawling", "web-data-infrastructure"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -51,7 +51,7 @@ test = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/olostep-api/langchain-olostep"
+Homepage = "https://www.olostep.com"
 Repository = "https://github.com/olostep-api/langchain-olostep"
 Documentation = "https://docs.olostep.com/integrations/langchain"
 Issues = "https://github.com/olostep-api/langchain-olostep/issues"
