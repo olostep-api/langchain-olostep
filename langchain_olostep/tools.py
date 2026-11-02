@@ -375,7 +375,7 @@ def scrape_batch(
 ) -> str:
     """Scrape multiple websites in parallel using Olostep's batch processing API.
     
-    Process up to 10,000 URLs simultaneously. Batch jobs typically complete in 5-8
+    Process up to 100k URLs simultaneously. Batch jobs typically complete in 5-8
     minutes regardless of batch size, making this extremely efficient for large-scale
     data extraction, competitive analysis, and building comprehensive datasets.
     
@@ -383,7 +383,7 @@ def scrape_batch(
     datasets, SEO audits, and content aggregation.
     
     Args:
-        urls: List of website URLs to scrape. Maximum 10,000 URLs per batch.
+        urls: List of website URLs to scrape. Maximum 100k URLs per batch.
             Each URL must include protocol (http:// or https://).
             Example: ["https://example1.com", "https://example2.com"]
         format: Output format for all URLs. Options:

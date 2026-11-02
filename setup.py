@@ -17,10 +17,10 @@ requirements = [
 
 setup(
     name="langchain-olostep",
-    version="0.3.5",
+    version="0.3.6",
     author="Olostep",
     author_email="info@olostep.com",
-    description="Live web search, scraping and crawling API for AI. Get structured, LLM-ready data from any site. Scale to 1M requests in a single batch at low cost.",
+    description="Live web search, scraping and crawling API for AI. Get structured, LLM-ready data from any site. Scale to 1M requests with 10 parallel batches at low cost.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://www.olostep.com",
