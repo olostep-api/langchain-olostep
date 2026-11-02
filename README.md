@@ -1,8 +1,17 @@
 # LangChain Olostep Integration
 
-**Live web search, scraping and crawling API for AI. Get structured, LLM-ready data from any site. Scale to 1M requests in a single batch at low cost.**
+**Live web search, scraping and crawling API for AI. Get structured, LLM-ready data from any site. Scale to 1M requests with 10 parallel batches at low cost.**
 
-[Olostep](https://www.olostep.com) is web data infrastructure for AI. It provides live web search, scraping and crawling API to extract and structure data. This package brings Olostep to LangChain and LangGraph agents.
+[Olostep](https://www.olostep.com) is web data infrastructure for AI agents and enterprise AI workflows. Its APIs provide live web search, scraping and crawling to extract, clean and structure data from the web. This package brings Olostep to LangChain and LangGraph agents.
+
+## Why Olostep
+
+- Web data infrastructure for developers and enterprises
+- Scales to hundreds of millions to billions of requests per customer per month
+- The most performant, reliable and cost-effective API on the market
+- Used by the fastest-growing AI companies
+
+From extracting data from a handful of URLs to crawling hundreds of millions of pages, Olostep gives developers and AI companies reliable, scalable and highly cost-effective access to clean, structured web data.
 
 ## Features
 
@@ -12,7 +21,7 @@ This integration provides access to all 5 Olostep API endpoints:
 Extract content from any single URL in multiple formats (Markdown, HTML, JSON, text). Handles JavaScript rendering, anti-scraping measures, and supports specialized parsers for specific websites.
 
 ### 2. Batches (`/v1/batches`)
-Process up to 10,000 URLs in parallel. Batch jobs typically complete in 5-8 minutes regardless of batch size. Perfect for large-scale data extraction and competitor analysis.
+Process up to 100k URLs in parallel. Batch jobs typically complete in 5-8 minutes regardless of batch size. Perfect for large-scale data extraction and competitor analysis.
 
 ### 3. Answers (`/v1/answers`)
 AI-powered web search with natural language queries. Ask questions and get structured answers with sources. Ground your AI products on real-world data and facts. Perfect for data enrichment and research.
@@ -259,7 +268,7 @@ Scrape content from a single URL. Supports markdown, HTML, JSON, and text format
 - `parser`: Optional parser ID for specialized extraction (e.g., "@olostep/amazon-product")
 
 ### `scrape_batch`
-Scrape multiple URLs in parallel (up to 10,000 at once).
+Scrape multiple URLs in parallel (up to 100k at once). New accounts start at 100 URLs per batch, and info@olostep.com can lift this.
 
 **Parameters:**
 - `urls` (required): List of URLs to scrape

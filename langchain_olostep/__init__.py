@@ -6,7 +6,7 @@ Build intelligent agents that can search, scrape, analyze, and structure data fr
 
 Features:
 - Scrapes: Extract content from any website with JavaScript rendering support
-- Batches: Process up to 10,000 URLs in parallel (5-8 minutes)
+- Batches: Process up to 100k URLs in parallel (5-8 minutes)
 - Crawls: Autonomously discover and scrape entire websites
 - Maps: Extract all URLs from a website for site structure analysis
 - Answers: AI-powered web search with natural language queries
