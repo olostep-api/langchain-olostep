@@ -6,6 +6,7 @@ Comprehensive tools matching all Olostep API capabilities:
 - Batches: Scrape multiple URLs in parallel
 - Crawls: Autonomously discover and scrape entire websites
 - Maps: Extract all URLs from a website
+- Searches: Web search results, optionally with each page's content
 - Answers: AI-powered web search and question answering
 """
 
@@ -132,6 +133,51 @@ class OlostepClient:
             return response.json()
         except requests.exceptions.RequestException as e:
             raise LangChainException(f"Olostep answer failed: {str(e)}")
+    
+    def search(
+        self,
+        query: str,
+        limit: int = 5,
+        include_domains: Optional[List[str]] = None,
+        exclude_domains: Optional[List[str]] = None,
+        scrape_results: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Search the web using /v1/searches endpoint.
+        
+        Args:
+            query: Search query in natural language
+            limit: Number of results to return (1-25)
+            include_domains: Only return results from these domains
+            exclude_domains: Never return results from these domains
+            scrape_results: Also scrape each result and include its markdown
+            
+        Returns:
+            Search result with a list of links
+        """
+        payload: Dict[str, Any] = {
+            "query": query,
+            "limit": limit
+        }
+        
+        if include_domains:
+            payload["include_domains"] = include_domains
+        if exclude_domains:
+            payload["exclude_domains"] = exclude_domains
+        if scrape_results:
+            payload["scrape_options"] = {"formats": ["markdown"]}
+        
+        try:
+            response = requests.post(
+                f"{self.base_url}/searches",
+                headers=self.headers,
+                json=payload,
+                timeout=90 if scrape_results else 60
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            raise LangChainException(f"Olostep search failed: {str(e)}")
     
     def create_map(
         self,
@@ -609,6 +655,96 @@ def answer_question(
         
     except Exception as e:
         raise LangChainException(f"Failed to get answer for task '{task}': {str(e)}")
+
+
+@tool
+def search_web(
+    query: str,
+    limit: int = 5,
+    include_domains: Optional[List[str]] = None,
+    exclude_domains: Optional[List[str]] = None,
+    scrape_results: bool = False,
+    api_key: Optional[str] = None
+) -> str:
+    """Search the web with Olostep and return the matching pages.
+    
+    Use this when you need web pages on a topic and do not have a URL yet. Returns
+    each result's URL, title and description. With scrape_results=True, each result
+    also includes the page's content as markdown, so the agent can read the pages
+    without a separate scrape. For a direct answer with sources, use answer_question.
+    
+    Args:
+        query: What to search for, in natural language.
+            Example: "best open source vector databases 2026"
+        limit: Number of results to return, from 1 to 25. Default: 5
+        include_domains: Only return results from these domains.
+            Example: ["docs.python.org", "github.com"]
+        exclude_domains: Never return results from these domains.
+            Example: ["pinterest.com"]
+        scrape_results: Also scrape each result and include its content as
+            markdown. Each scraped page uses extra credits. Default: False
+        api_key: Olostep API key. If not provided, uses OLOSTEP_API_KEY
+            environment variable.
+    
+    Returns:
+        str: JSON string containing:
+            - query: The search query
+            - search_id: Unique search ID for reference
+            - results: List of results, each with url, title and description,
+              plus markdown_content when scrape_results is True
+            - total_results: Number of results returned
+    
+    Raises:
+        LangChainException: If the search fails due to network or API errors.
+    
+    Examples:
+        Basic search:
+            >>> from langchain_olostep import search_web
+            >>> result = search_web.invoke({"query": "LangChain agents tutorial"})
+            
+        Search one site and read the pages in the same call:
+            >>> result = search_web.invoke({
+            ...     "query": "rate limits",
+            ...     "include_domains": ["docs.olostep.com"],
+            ...     "scrape_results": True
+            ... })
+    
+    Note:
+        See https://docs.olostep.com/features/search for full documentation.
+    """
+    try:
+        client = OlostepClient(api_key)
+        result = client.search(
+            query=query,
+            limit=min(max(int(limit), 1), 25),
+            include_domains=include_domains,
+            exclude_domains=exclude_domains,
+            scrape_results=scrape_results
+        )
+        
+        links = (result.get("result") or {}).get("links") or []
+        results = []
+        for link in links:
+            item = {
+                "url": link.get("url", ""),
+                "title": link.get("title", ""),
+                "description": link.get("description", "")
+            }
+            if link.get("markdown_content"):
+                item["markdown_content"] = link["markdown_content"]
+            results.append(item)
+        
+        response = {
+            "query": query,
+            "search_id": result.get("id", ""),
+            "results": results,
+            "total_results": len(results)
+        }
+        
+        return json.dumps(response, indent=2)
+        
+    except Exception as e:
+        raise LangChainException(f"Failed to search the web for '{query}': {str(e)}")
 
 
 @tool
