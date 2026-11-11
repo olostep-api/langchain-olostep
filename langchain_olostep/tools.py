@@ -664,6 +664,7 @@ def search_web(
     include_domains: Optional[List[str]] = None,
     exclude_domains: Optional[List[str]] = None,
     scrape_results: bool = False,
+    max_characters: int = 20000,
     api_key: Optional[str] = None
 ) -> str:
     """Search the web with Olostep and return the matching pages.
@@ -683,6 +684,10 @@ def search_web(
             Example: ["pinterest.com"]
         scrape_results: Also scrape each result and include its content as
             markdown. Each scraped page uses extra credits. Default: False
+        max_characters: Maximum characters of markdown kept per page when
+            scrape_results is True. Longer pages are cut and marked with
+            truncated and full_length; use scrape_website for the full page.
+            Default: 20000
         api_key: Olostep API key. If not provided, uses OLOSTEP_API_KEY
             environment variable.
     
@@ -691,7 +696,8 @@ def search_web(
             - query: The search query
             - search_id: Unique search ID for reference
             - results: List of results, each with url, title and description,
-              plus markdown_content when scrape_results is True
+              plus markdown_content when scrape_results is True (and
+              truncated/full_length when the page was cut)
             - total_results: Number of results returned
     
     Raises:
@@ -723,6 +729,7 @@ def search_web(
         )
         
         links = (result.get("result") or {}).get("links") or []
+        cap = max(int(max_characters), 1)
         results = []
         for link in links:
             item = {
@@ -730,8 +737,14 @@ def search_web(
                 "title": link.get("title", ""),
                 "description": link.get("description", "")
             }
-            if link.get("markdown_content"):
-                item["markdown_content"] = link["markdown_content"]
+            content = link.get("markdown_content")
+            if content:
+                if len(content) > cap:
+                    item["markdown_content"] = content[:cap]
+                    item["truncated"] = True
+                    item["full_length"] = len(content)
+                else:
+                    item["markdown_content"] = content
             results.append(item)
         
         response = {

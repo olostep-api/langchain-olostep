@@ -246,6 +246,29 @@ class TestSearchWebTool:
         }
         assert json.loads(result)["results"][0]["markdown_content"] == "# Docs"
     
+    @patch('requests.post')
+    def test_search_web_caps_page_content(self, mock_post):
+        """Scraped markdown longer than max_characters is cut and marked."""
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "id": "search_789",
+            "result": {"links": [
+                {"url": "https://a.com", "title": "A", "description": "", "markdown_content": "x" * 25000},
+                {"url": "https://b.com", "title": "B", "description": "", "markdown_content": "short"},
+            ]},
+        }
+        mock_response.raise_for_status = Mock()
+        mock_post.return_value = mock_response
+
+        data = json.loads(search_web.invoke({"query": "q", "scrape_results": True, "api_key": "test-key"}))
+        long_item, short_item = data["results"]
+        assert len(long_item["markdown_content"]) == 20000
+        assert long_item["truncated"] is True and long_item["full_length"] == 25000
+        assert short_item["markdown_content"] == "short" and "truncated" not in short_item
+
+        data = json.loads(search_web.invoke({"query": "q", "scrape_results": True, "max_characters": 100, "api_key": "test-key"}))
+        assert len(data["results"][0]["markdown_content"]) == 100
+
     @patch('langchain_olostep.tools.OlostepClient')
     def test_search_web_error(self, mock_client_class):
         """Test search_web error handling."""

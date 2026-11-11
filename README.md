@@ -309,6 +309,7 @@ Search the web and get the matching pages. Use it when the agent needs pages on 
 - `include_domains`: Only return results from these domains
 - `exclude_domains`: Never return results from these domains
 - `scrape_results`: Also return each result's content as markdown (default: `False`). Each scraped page uses extra credits.
+- `max_characters`: Maximum characters of markdown kept per page (default: `20000`). Longer pages are cut and marked with `truncated` and `full_length`; use `scrape_website` for the full page.
 
 **Examples:**
 ```python
