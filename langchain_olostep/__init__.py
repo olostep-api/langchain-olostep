@@ -9,6 +9,7 @@ Features:
 - Batches: Process up to 100k URLs in parallel (5-8 minutes)
 - Crawls: Autonomously discover and scrape entire websites
 - Maps: Extract all URLs from a website for site structure analysis
+- Searches: Web search results, optionally with each page's content
 - Answers: AI-powered web search with natural language queries
 - Multiple Formats: Support for Markdown, HTML, JSON, and plain text
 """
@@ -17,15 +18,17 @@ from .tools import (
     scrape_website,
     scrape_batch,
     answer_question,
+    search_web,
     extract_urls,
     crawl_website,
 )
 
-__version__ = "0.3.5"
+__version__ = "0.4.0"
 __all__ = [
     "scrape_website",
     "scrape_batch",
     "answer_question",
+    "search_web",
     "extract_urls",
     "crawl_website",
 ]

@@ -9,6 +9,7 @@ from langchain_olostep.tools import (
     scrape_website,
     scrape_batch,
     answer_question,
+    search_web,
     extract_urls,
     crawl_website,
     OlostepClient
@@ -186,6 +187,76 @@ class TestAnswerQuestionTool:
             answer_question.invoke({
                 "task": "What is the capital of France?"
             })
+
+
+class TestSearchWebTool:
+    """Test search_web tool."""
+    
+    @patch('requests.post')
+    def test_search_web_sends_query_and_limit(self, mock_post):
+        """The tool calls /v1/searches and returns one result per link."""
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "id": "search_123",
+            "result": {
+                "links": [
+                    {"url": "https://example.com/a", "title": "A", "description": "First"},
+                    {"url": "https://example.com/b", "title": "B", "description": "Second"},
+                ]
+            },
+        }
+        mock_response.raise_for_status = Mock()
+        mock_post.return_value = mock_response
+        
+        result = search_web.invoke({"query": "test query", "api_key": "test-key"})
+        
+        assert mock_post.call_args.args[0] == "https://api.olostep.com/v1/searches"
+        assert mock_post.call_args.kwargs["json"] == {"query": "test query", "limit": 5}
+        data = json.loads(result)
+        assert data["search_id"] == "search_123"
+        assert data["total_results"] == 2
+        assert data["results"][0] == {"url": "https://example.com/a", "title": "A", "description": "First"}
+    
+    @patch('requests.post')
+    def test_search_web_with_filters_and_scrape(self, mock_post):
+        """Domain filters and scrape_results are sent, and page markdown is returned."""
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "id": "search_456",
+            "result": {"links": [{"url": "https://docs.example.com", "title": "Docs", "description": "", "markdown_content": "# Docs"}]},
+        }
+        mock_response.raise_for_status = Mock()
+        mock_post.return_value = mock_response
+        
+        result = search_web.invoke({
+            "query": "rate limits",
+            "limit": 100,
+            "include_domains": ["docs.example.com"],
+            "exclude_domains": ["pinterest.com"],
+            "scrape_results": True,
+            "api_key": "test-key",
+        })
+        
+        assert mock_post.call_args.kwargs["json"] == {
+            "query": "rate limits",
+            "limit": 25,
+            "include_domains": ["docs.example.com"],
+            "exclude_domains": ["pinterest.com"],
+            "scrape_options": {"formats": ["markdown"]},
+        }
+        assert json.loads(result)["results"][0]["markdown_content"] == "# Docs"
+    
+    @patch('langchain_olostep.tools.OlostepClient')
+    def test_search_web_error(self, mock_client_class):
+        """Test search_web error handling."""
+        mock_client = Mock()
+        mock_client.search.side_effect = Exception("API Error")
+        mock_client_class.return_value = mock_client
+        
+        with pytest.raises(LangChainException) as exc_info:
+            search_web.invoke({"query": "test", "api_key": "test-key"})
+        
+        assert "Failed to search the web" in str(exc_info.value)
 
 
 class TestExtractUrlsTool:

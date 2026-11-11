@@ -15,7 +15,7 @@ From extracting data from a handful of URLs to crawling hundreds of millions of 
 
 ## Features
 
-This integration provides access to all 5 Olostep API endpoints:
+This integration provides access to 6 Olostep API endpoints:
 
 ### 1. Scrapes (`/v1/scrapes`)
 Extract content from any single URL in multiple formats (Markdown, HTML, JSON, text). Handles JavaScript rendering, anti-scraping measures, and supports specialized parsers for specific websites.
@@ -31,6 +31,9 @@ Extract all URLs from a website for site structure analysis and content discover
 
 ### 5. Crawls (`/v1/crawls`)
 Autonomously discover and scrape entire websites by following links. Perfect for documentation sites, blogs, and comprehensive website data extraction.
+
+### 6. Searches (`/v1/searches`)
+Search the web and get each result's URL, title and description, optionally with the page's content as markdown in the same call. Filter results by domain.
 
 ### Core Capabilities
 - **Multiple Formats**: Markdown, HTML, JSON, and plain text
@@ -92,7 +95,26 @@ result = asyncio.run(scrape_batch.ainvoke({
 print(result)
 ```
 
-### 3. AI-Powered Web Search & Q&A
+### 3. Search the Web
+
+```python
+from langchain_olostep import search_web
+
+# Get the top results for a query
+result = search_web.invoke({"query": "best open source vector databases", "limit": 5})
+
+# Search one site and read each result page in the same call
+result = search_web.invoke({
+    "query": "rate limits",
+    "include_domains": ["docs.olostep.com"],
+    "scrape_results": True
+})
+
+print(result)
+# Returns: {"query": ..., "results": [{"url": ..., "title": ..., "description": ..., "markdown_content": ...}], ...}
+```
+
+### 4. AI-Powered Web Search & Q&A
 
 ```python
 from langchain_olostep import answer_question
@@ -113,7 +135,7 @@ print(result)
 # Also includes sources used
 ```
 
-### 4. Extract URLs from Website
+### 5. Extract URLs from Website
 
 ```python
 from langchain_olostep import extract_urls
@@ -129,7 +151,7 @@ result = asyncio.run(extract_urls.ainvoke({
 print(result)
 ```
 
-### 5. Crawl Entire Website
+### 6. Crawl Entire Website
 
 ```python
 from langchain_olostep import crawl_website
@@ -155,13 +177,14 @@ pip install langchain langchain-openai langchain-olostep
 from langchain.agents import create_agent
 from langchain_openai import ChatOpenAI
 from langchain_olostep import (
+    search_web,
     scrape_website,
     answer_question,
     extract_urls
 )
 
 # Create agent with Olostep tools
-tools = [scrape_website, answer_question, extract_urls]
+tools = [search_web, scrape_website, answer_question, extract_urls]
 agent = create_agent(
     model=ChatOpenAI(model="gpt-4o-mini"),
     tools=tools,
@@ -276,6 +299,27 @@ Scrape multiple URLs in parallel (up to 100k at once). New accounts start at 100
 - `country`: Country code for location-specific content
 - `wait_before_scraping`: Wait time in milliseconds for JavaScript rendering
 - `parser`: Optional parser ID for specialized extraction
+
+### `search_web`
+Search the web and get the matching pages. Use it when the agent needs pages on a topic and has no URL yet.
+
+**Parameters:**
+- `query` (required): What to search for, in natural language
+- `limit`: Number of results, from 1 to 25 (default: 5)
+- `include_domains`: Only return results from these domains
+- `exclude_domains`: Never return results from these domains
+- `scrape_results`: Also return each result's content as markdown (default: `False`). Each scraped page uses extra credits.
+
+**Examples:**
+```python
+search_web.invoke({"query": "LangGraph multi-agent tutorial"})
+
+search_web.invoke({
+    "query": "pricing",
+    "include_domains": ["olostep.com"],
+    "scrape_results": True
+})
+```
 
 ### `answer_question`
 Search the web and get AI-powered answers with sources.
