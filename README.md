@@ -289,6 +289,7 @@ Scrape content from a single URL. Supports markdown, HTML, JSON, and text format
 - `country`: Country code for location-specific content (e.g., "US", "GB", "CA")
 - `wait_before_scraping`: Wait time in milliseconds for JavaScript rendering
 - `parser`: Optional parser ID for specialized extraction (e.g., "@olostep/amazon-product")
+- `max_characters`: Maximum characters of content returned (default: `20000`). Longer pages are cut and marked with `truncated` and `full_length`; the full page is at the `<format>_url` link.
 
 ### `scrape_batch`
 Scrape multiple URLs in parallel (up to 100k at once). New accounts start at 100 URLs per batch, and info@olostep.com can lift this.

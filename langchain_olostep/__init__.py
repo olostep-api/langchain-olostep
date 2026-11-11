@@ -23,7 +23,7 @@ from .tools import (
     crawl_website,
 )
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 __all__ = [
     "scrape_website",
     "scrape_batch",

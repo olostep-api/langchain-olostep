@@ -297,6 +297,7 @@ def scrape_website(
     country: Optional[str] = None,
     wait_before_scraping: int = 0,
     parser: Optional[str] = None,
+    max_characters: int = 20000,
     api_key: Optional[str] = None
 ) -> str:
     """Scrape content from any website using Olostep's web scraping API.
@@ -326,12 +327,16 @@ def scrape_website(
             popular websites. Available parsers:
             - "@olostep/amazon-product": Amazon product pages
             - "@olostep/google-search": Google search results
+        max_characters: Maximum characters of content returned. Longer pages
+            are cut and marked with truncated and full_length; the full page is
+            at the <format>_url link when the API provides one. Default: 20000
         api_key: Olostep API key. If not provided, uses OLOSTEP_API_KEY
             environment variable.
     
     Returns:
         str: JSON string containing:
-            - content: Scraped content in requested format
+            - content: Scraped content in requested format, up to max_characters
+              (with truncated and full_length when it was cut)
             - url: Original URL scraped
             - format: Format used
             - scrape_id: Unique scrape ID for reference
@@ -391,6 +396,12 @@ def scrape_website(
         if isinstance(content, dict):
             content = json.dumps(content, indent=2)
         
+        # Cap the content so one page can't flood the agent's context
+        cap = max(int(max_characters), 1)
+        full_length = len(content) if isinstance(content, str) else 0
+        if full_length > cap:
+            content = content[:cap]
+        
         # Build response with metadata
         response = {
             "content": content,
@@ -399,6 +410,9 @@ def scrape_website(
             "scrape_id": result.get("retrieve_id", ""),
             "metadata": content_result.get("page_metadata", {})
         }
+        if full_length > cap:
+            response["truncated"] = True
+            response["full_length"] = full_length
         
         # Add hosted URLs if available
         if f"{format}_hosted_url" in content_result:

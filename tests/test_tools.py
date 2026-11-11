@@ -80,6 +80,25 @@ class TestScrapeWebsiteTool:
         assert parsed["url"] == "https://example.com"
         assert parsed["scrape_id"] == "test-id"
     
+    @patch('requests.post')
+    def test_scrape_website_caps_content(self, mock_post):
+        """Content longer than max_characters is cut and marked."""
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "result": {"markdown_content": "x" * 25000, "markdown_hosted_url": "https://files.example/full.md"},
+            "retrieve_id": "r1",
+        }
+        mock_response.raise_for_status = Mock()
+        mock_post.return_value = mock_response
+
+        data = json.loads(scrape_website.invoke({"url": "https://example.com", "api_key": "test-key"}))
+        assert len(data["content"]) == 20000
+        assert data["truncated"] is True and data["full_length"] == 25000
+        assert data["markdown_url"] == "https://files.example/full.md"
+
+        data = json.loads(scrape_website.invoke({"url": "https://example.com", "max_characters": 30000, "api_key": "test-key"}))
+        assert len(data["content"]) == 25000 and "truncated" not in data
+
     @patch('langchain_olostep.tools.OlostepClient')
     def test_scrape_website_error(self, mock_client_class):
         """Test scraping error handling."""
