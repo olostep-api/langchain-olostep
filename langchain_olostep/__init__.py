@@ -21,9 +21,11 @@ from .tools import (
     search_web,
     extract_urls,
     crawl_website,
+    get_batch_results,
+    get_crawl_results,
 )
 
-__version__ = "0.4.1"
+__version__ = "0.5.0"
 __all__ = [
     "scrape_website",
     "scrape_batch",
@@ -31,4 +33,6 @@ __all__ = [
     "search_web",
     "extract_urls",
     "crawl_website",
+    "get_batch_results",
+    "get_crawl_results",
 ]

@@ -289,6 +289,7 @@ Scrape content from a single URL. Supports markdown, HTML, JSON, and text format
 - `country`: Country code for location-specific content (e.g., "US", "GB", "CA")
 - `wait_before_scraping`: Wait time in milliseconds for JavaScript rendering
 - `parser`: Optional parser ID for specialized extraction (e.g., "@olostep/amazon-product")
+- `max_characters`: Maximum characters of content returned (default: `20000`). Longer pages are cut and marked with `truncated` and `full_length`; the full page is at the `<format>_url` link.
 
 ### `scrape_batch`
 Scrape multiple URLs in parallel (up to 100k at once). New accounts start at 100 URLs per batch, and info@olostep.com can lift this.
@@ -299,6 +300,18 @@ Scrape multiple URLs in parallel (up to 100k at once). New accounts start at 100
 - `country`: Country code for location-specific content
 - `wait_before_scraping`: Wait time in milliseconds for JavaScript rendering
 - `parser`: Optional parser ID for specialized extraction
+
+Returns a `batch_id`. Pass it to `get_batch_results` to get the pages.
+
+### `get_batch_results`
+Get the content of a batch's pages, a set at a time. If the batch is still running, returns its status so you can call again later.
+
+**Parameters:**
+- `batch_id` (required): The `batch_id` from `scrape_batch`
+- `format`: Content format (markdown, html, json, text). Default: "markdown"
+- `items_limit`: Pages per call, 1 to 100. Default: 20
+- `cursor`: Pass `next_cursor` from the previous call while `has_more` is true. Default: 0
+- `max_characters`: Maximum characters of content per page (default: `20000`). Longer pages are cut and marked with `truncated` and `full_length`.
 
 ### `search_web`
 Search the web and get the matching pages. Use it when the agent needs pages on a topic and has no URL yet.
@@ -361,6 +374,18 @@ Autonomously discover and scrape entire websites.
 - `exclude_urls`: Glob patterns to exclude
 - `max_depth`: Maximum depth to crawl from start_url
 - `include_external`: Include external URLs. Default: False
+
+Returns a `crawl_id`. Pass it to `get_crawl_results` to get the pages.
+
+### `get_crawl_results`
+Get the content of a crawl's pages, a set at a time. If the crawl is still running, returns its status so you can call again later.
+
+**Parameters:**
+- `crawl_id` (required): The `crawl_id` from `crawl_website`
+- `format`: Content format (markdown, html, json, text). Default: "markdown"
+- `items_limit`: Pages per call, 1 to 100. Default: 20
+- `cursor`: Pass `next_cursor` from the previous call while `has_more` is true. Default: 0
+- `max_characters`: Maximum characters of content per page (default: `20000`). Longer pages are cut and marked with `truncated` and `full_length`.
 
 ## Advanced Examples
 

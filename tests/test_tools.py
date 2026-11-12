@@ -10,6 +10,8 @@ from langchain_olostep.tools import (
     scrape_batch,
     answer_question,
     search_web,
+    get_batch_results,
+    get_crawl_results,
     extract_urls,
     crawl_website,
     OlostepClient
@@ -80,6 +82,25 @@ class TestScrapeWebsiteTool:
         assert parsed["url"] == "https://example.com"
         assert parsed["scrape_id"] == "test-id"
     
+    @patch('requests.post')
+    def test_scrape_website_caps_content(self, mock_post):
+        """Content longer than max_characters is cut and marked."""
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "result": {"markdown_content": "x" * 25000, "markdown_hosted_url": "https://files.example/full.md"},
+            "retrieve_id": "r1",
+        }
+        mock_response.raise_for_status = Mock()
+        mock_post.return_value = mock_response
+
+        data = json.loads(scrape_website.invoke({"url": "https://example.com", "api_key": "test-key"}))
+        assert len(data["content"]) == 20000
+        assert data["truncated"] is True and data["full_length"] == 25000
+        assert data["markdown_url"] == "https://files.example/full.md"
+
+        data = json.loads(scrape_website.invoke({"url": "https://example.com", "max_characters": 30000, "api_key": "test-key"}))
+        assert len(data["content"]) == 25000 and "truncated" not in data
+
     @patch('langchain_olostep.tools.OlostepClient')
     def test_scrape_website_error(self, mock_client_class):
         """Test scraping error handling."""
@@ -399,3 +420,78 @@ class TestCrawlWebsiteTool:
                 "start_url": "https://example.com",
                 "max_pages": 10
             })
+
+
+def _api_get(routes):
+    """Fake requests.get that answers by URL path suffix."""
+    def fake_get(url, headers=None, params=None, timeout=None):
+        for suffix, body in routes.items():
+            if url.endswith(suffix):
+                response = Mock()
+                response.json.return_value = body(params) if callable(body) else body
+                response.raise_for_status = Mock()
+                return response
+        raise AssertionError(f"unexpected GET {url}")
+    return fake_get
+
+
+class TestJobResults:
+    """Test get_batch_results and get_crawl_results."""
+
+    @patch('requests.get')
+    def test_batch_results_return_capped_content(self, mock_get):
+        """Each item's content is fetched and cut to max_characters."""
+        mock_get.side_effect = _api_get({
+            "/batches/b1": {"id": "b1", "status": "completed", "total_urls": 2},
+            "/batches/b1/items": {"items": [
+                {"url": "https://a.com", "custom_id": "url_0", "retrieve_id": "r0"},
+                {"url": "https://b.com", "custom_id": "url_1", "retrieve_id": "r1"},
+            ], "cursor": 2},
+            "/retrieve": lambda params: {"markdown_content": "x" * 25000 if ("retrieve_id", "r0") in params else "short"},
+        })
+        data = json.loads(get_batch_results.invoke({"batch_id": "b1", "api_key": "test-key"}))
+        first, second = data["items"]
+        assert len(first["content"]) == 20000 and first["truncated"] is True and first["full_length"] == 25000
+        assert second == {"url": "https://b.com", "custom_id": "url_1", "content": "short"}
+        # The first page held every URL, so there is nothing more even though the API sent a cursor.
+        assert data["has_more"] is False and "next_cursor" not in data
+
+    @patch('requests.get')
+    def test_batch_results_page_through_cursor(self, mock_get):
+        """has_more and next_cursor come back while more pages remain."""
+        mock_get.side_effect = _api_get({
+            "/batches/b1": {"id": "b1", "status": "completed", "total_urls": 3},
+            "/batches/b1/items": {"items": [{"url": "https://a.com", "retrieve_id": "r0"}], "cursor": 99},
+            "/retrieve": {"markdown_content": "page"},
+        })
+        data = json.loads(get_batch_results.invoke({"batch_id": "b1", "items_limit": 1, "api_key": "test-key"}))
+        assert data["has_more"] is True and data["next_cursor"] == 99
+
+    @patch('requests.get')
+    def test_batch_still_running(self, mock_get):
+        """A running batch returns its status and no items."""
+        mock_get.side_effect = _api_get({"/batches/b1": {"id": "b1", "status": "in_progress"}})
+        data = json.loads(get_batch_results.invoke({"batch_id": "b1", "api_key": "test-key"}))
+        assert data["status"] == "in_progress" and "items" not in data
+
+    @patch('requests.get')
+    def test_crawl_results_return_capped_content(self, mock_get):
+        """Crawl pages are fetched in the requested format and capped."""
+        mock_get.side_effect = _api_get({
+            "/crawls/c1": {"id": "c1", "status": "completed", "pages_count": 1},
+            "/crawls/c1/pages": {"pages": [{"url": "https://docs.a.com", "retrieve_id": "r0"}], "cursor": None},
+            "/retrieve": lambda params: {"html_content": "<p>" + "y" * 500 + "</p>"} if ("formats[]", "html") in params else {},
+        })
+        data = json.loads(get_crawl_results.invoke({"crawl_id": "c1", "format": "html", "max_characters": 100, "api_key": "test-key"}))
+        assert data["crawl_id"] == "c1" and data["has_more"] is False
+        assert len(data["items"][0]["content"]) == 100 and data["items"][0]["truncated"] is True
+
+    @patch('requests.get')
+    def test_missing_retrieve_id_is_reported(self, mock_get):
+        """A page without a retrieve_id gets an error instead of failing the call."""
+        mock_get.side_effect = _api_get({
+            "/crawls/c1": {"id": "c1", "status": "completed"},
+            "/crawls/c1/pages": {"pages": [{"url": "https://docs.a.com"}]},
+        })
+        data = json.loads(get_crawl_results.invoke({"crawl_id": "c1", "api_key": "test-key"}))
+        assert "error" in data["items"][0]

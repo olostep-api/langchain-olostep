@@ -286,6 +286,79 @@ class OlostepClient:
             return response.json()
         except requests.exceptions.RequestException as e:
             raise LangChainException(f"Failed to get crawl status: {str(e)}")
+    
+    def _get(self, path: str, params: Optional[Any] = None, timeout: int = 60) -> Dict[str, Any]:
+        """GET an Olostep API path and return the JSON body."""
+        response = requests.get(
+            f"{self.base_url}{path}",
+            headers=self.headers,
+            params=params,
+            timeout=timeout
+        )
+        response.raise_for_status()
+        return response.json()
+    
+    def get_batch(self, batch_id: str) -> Dict[str, Any]:
+        """Get the status of a batch job."""
+        return self._get(f"/batches/{batch_id}", timeout=30)
+    
+    def get_batch_items(self, batch_id: str, cursor: int = 0, limit: int = 20) -> Dict[str, Any]:
+        """List one page of a completed batch's items."""
+        return self._get(f"/batches/{batch_id}/items", {"cursor": cursor, "limit": limit})
+    
+    def get_crawl_pages(self, crawl_id: str, cursor: int = 0, limit: int = 20) -> Dict[str, Any]:
+        """List one page of a completed crawl's pages."""
+        return self._get(f"/crawls/{crawl_id}/pages", {"cursor": cursor, "limit": limit})
+    
+    def retrieve(self, retrieve_id: str, formats: List[str]) -> Dict[str, Any]:
+        """Get the content of a scraped page by its retrieve_id."""
+        return self._get("/retrieve", [("retrieve_id", retrieve_id)] + [("formats[]", f) for f in formats])
+
+
+def _cap_content(item: Dict[str, Any], content: Any, max_characters: int) -> None:
+    """Put content on item, cut to max_characters and marked when it was longer."""
+    if isinstance(content, (dict, list)):
+        content = json.dumps(content, indent=2)
+    content = content or ""
+    cap = max(int(max_characters), 1)
+    if len(content) > cap:
+        item["content"] = content[:cap]
+        item["truncated"] = True
+        item["full_length"] = len(content)
+    else:
+        item["content"] = content
+
+
+def _fetch_contents(
+    client: "OlostepClient",
+    entries: List[Dict[str, Any]],
+    format: str,
+    max_characters: int
+) -> List[Dict[str, Any]]:
+    """Fetch each listed page's content in parallel, capped at max_characters."""
+    from concurrent.futures import ThreadPoolExecutor
+    
+    def fetch(entry: Dict[str, Any]) -> Dict[str, Any]:
+        item: Dict[str, Any] = {"url": entry.get("url", "")}
+        if entry.get("custom_id"):
+            item["custom_id"] = entry["custom_id"]
+        retrieve_id = entry.get("retrieve_id")
+        if not retrieve_id:
+            item["error"] = "No retrieve_id for this page"
+            return item
+        try:
+            data = client.retrieve(retrieve_id, [format])
+            _cap_content(item, data.get(f"{format}_content"), max_characters)
+            if data.get(f"{format}_hosted_url"):
+                item[f"{format}_url"] = data[f"{format}_hosted_url"]
+        except Exception as e:
+            item["error"] = f"Could not get content: {str(e)}"
+        return item
+    
+    if not entries:
+        return []
+    with ThreadPoolExecutor(max_workers=min(10, len(entries))) as pool:
+        return list(pool.map(fetch, entries))
 
 
 # LangChain Tools
@@ -297,6 +370,7 @@ def scrape_website(
     country: Optional[str] = None,
     wait_before_scraping: int = 0,
     parser: Optional[str] = None,
+    max_characters: int = 20000,
     api_key: Optional[str] = None
 ) -> str:
     """Scrape content from any website using Olostep's web scraping API.
@@ -326,12 +400,16 @@ def scrape_website(
             popular websites. Available parsers:
             - "@olostep/amazon-product": Amazon product pages
             - "@olostep/google-search": Google search results
+        max_characters: Maximum characters of content returned. Longer pages
+            are cut and marked with truncated and full_length; the full page is
+            at the <format>_url link when the API provides one. Default: 20000
         api_key: Olostep API key. If not provided, uses OLOSTEP_API_KEY
             environment variable.
     
     Returns:
         str: JSON string containing:
-            - content: Scraped content in requested format
+            - content: Scraped content in requested format, up to max_characters
+              (with truncated and full_length when it was cut)
             - url: Original URL scraped
             - format: Format used
             - scrape_id: Unique scrape ID for reference
@@ -391,6 +469,12 @@ def scrape_website(
         if isinstance(content, dict):
             content = json.dumps(content, indent=2)
         
+        # Cap the content so one page can't flood the agent's context
+        cap = max(int(max_characters), 1)
+        full_length = len(content) if isinstance(content, str) else 0
+        if full_length > cap:
+            content = content[:cap]
+        
         # Build response with metadata
         response = {
             "content": content,
@@ -399,6 +483,9 @@ def scrape_website(
             "scrape_id": result.get("retrieve_id", ""),
             "metadata": content_result.get("page_metadata", {})
         }
+        if full_length > cap:
+            response["truncated"] = True
+            response["full_length"] = full_length
         
         # Add hosted URLs if available
         if f"{format}_hosted_url" in content_result:
@@ -493,7 +580,7 @@ def scrape_batch(
     
     Note:
         Batch processing is asynchronous. The tool returns immediately with a
-        batch_id. Use the batch_id to check status and retrieve results later.
+        batch_id. Pass it to get_batch_results to get each page's content.
         See https://docs.olostep.com/api-reference/batches for full documentation.
     """
     try:
@@ -995,7 +1082,7 @@ def crawl_website(
     
     Note:
         Crawling is asynchronous. The tool returns immediately with a crawl_id.
-        Use the crawl_id to check status and retrieve results later. Large crawls
+        Pass it to get_crawl_results to get each page's content. Large crawls
         may take several minutes to complete.
         See https://docs.olostep.com/api-reference/crawls for full documentation.
     """
@@ -1027,3 +1114,149 @@ def crawl_website(
         
     except Exception as e:
         raise LangChainException(f"Failed to start crawl for {start_url}: {str(e)}")
+
+
+def _job_results(
+    kind: str,
+    job_id: str,
+    status: Dict[str, Any],
+    listing: Dict[str, Any],
+    entries: List[Dict[str, Any]],
+    cursor: int,
+    total: Optional[int],
+    client: "OlostepClient",
+    format: str,
+    max_characters: int
+) -> str:
+    """Build the JSON result for get_batch_results and get_crawl_results."""
+    next_cursor = listing.get("cursor")
+    # The API returns a cursor whenever a page is full, even if nothing is left.
+    first_page_has_all = not cursor and isinstance(total, int) and len(entries) >= total
+    has_more = bool(entries) and next_cursor is not None and not first_page_has_all
+    response: Dict[str, Any] = {
+        f"{kind}_id": status.get("id", job_id),
+        "status": "completed",
+        "items_returned": len(entries),
+        "has_more": has_more,
+        "items": _fetch_contents(client, entries, format, max_characters),
+    }
+    if has_more:
+        response["next_cursor"] = next_cursor
+    return json.dumps(response, indent=2)
+
+
+def _still_running(kind: str, job_id: str, status: Dict[str, Any]) -> str:
+    """Build the JSON result for a batch or crawl that has not finished."""
+    state = status.get("status", "unknown")
+    return json.dumps({
+        f"{kind}_id": status.get("id", job_id),
+        "status": state,
+        "message": f"The {kind} is {state}, not completed yet. Call get_{kind}_results again in a minute.",
+    }, indent=2)
+
+
+@tool
+def get_batch_results(
+    batch_id: str,
+    format: Literal["markdown", "html", "json", "text"] = "markdown",
+    items_limit: int = 20,
+    cursor: int = 0,
+    max_characters: int = 20000,
+    api_key: Optional[str] = None
+) -> str:
+    """Get the scraped content of a batch started with scrape_batch.
+    
+    Returns each page's content, a set of pages per call. If the batch is still
+    running, returns its status so you can call again later. When has_more is
+    true, call again with next_cursor to get the next pages.
+    
+    Args:
+        batch_id: The batch_id returned by scrape_batch.
+        format: Content format to return: "markdown" (default), "html",
+            "json" or "text".
+        items_limit: Number of pages to return per call, from 1 to 100.
+            Default: 20
+        cursor: Pass next_cursor from the previous call to get the next pages.
+            Default: 0 (first page)
+        max_characters: Maximum characters of content per page. Longer pages
+            are cut and marked with truncated and full_length. Default: 20000
+        api_key: Olostep API key. If not provided, uses OLOSTEP_API_KEY
+            environment variable.
+    
+    Returns:
+        str: JSON string with batch_id, status, items_returned, has_more,
+        next_cursor (when has_more) and items, each with url, custom_id and
+        content.
+    
+    Examples:
+        >>> from langchain_olostep import scrape_batch, get_batch_results
+        >>> import json
+        >>> batch = json.loads(scrape_batch.invoke({"urls": ["https://example.com"]}))
+        >>> result = get_batch_results.invoke({"batch_id": batch["batch_id"]})
+    """
+    try:
+        client = OlostepClient(api_key)
+        status = client.get_batch(batch_id)
+        if str(status.get("status", "")).lower() != "completed":
+            return _still_running("batch", batch_id, status)
+        limit = min(max(int(items_limit), 1), 100)
+        listing = client.get_batch_items(batch_id, cursor=cursor, limit=limit)
+        entries = listing.get("items") or []
+        total = status.get("total_urls")
+        return _job_results("batch", batch_id, status, listing, entries, cursor, total,
+                            client, format, max_characters)
+    except Exception as e:
+        raise LangChainException(f"Failed to get results for batch {batch_id}: {str(e)}")
+
+
+@tool
+def get_crawl_results(
+    crawl_id: str,
+    format: Literal["markdown", "html", "json", "text"] = "markdown",
+    items_limit: int = 20,
+    cursor: int = 0,
+    max_characters: int = 20000,
+    api_key: Optional[str] = None
+) -> str:
+    """Get the content of the pages found by a crawl started with crawl_website.
+    
+    Returns each page's content, a set of pages per call. If the crawl is still
+    running, returns its status so you can call again later. When has_more is
+    true, call again with next_cursor to get the next pages.
+    
+    Args:
+        crawl_id: The crawl_id returned by crawl_website.
+        format: Content format to return: "markdown" (default), "html",
+            "json" or "text".
+        items_limit: Number of pages to return per call, from 1 to 100.
+            Default: 20
+        cursor: Pass next_cursor from the previous call to get the next pages.
+            Default: 0 (first page)
+        max_characters: Maximum characters of content per page. Longer pages
+            are cut and marked with truncated and full_length. Default: 20000
+        api_key: Olostep API key. If not provided, uses OLOSTEP_API_KEY
+            environment variable.
+    
+    Returns:
+        str: JSON string with crawl_id, status, items_returned, has_more,
+        next_cursor (when has_more) and items, each with url and content.
+    
+    Examples:
+        >>> from langchain_olostep import crawl_website, get_crawl_results
+        >>> import json
+        >>> crawl = json.loads(crawl_website.invoke({"start_url": "https://docs.example.com", "max_pages": 10}))
+        >>> result = get_crawl_results.invoke({"crawl_id": crawl["crawl_id"]})
+    """
+    try:
+        client = OlostepClient(api_key)
+        status = client.get_crawl_status(crawl_id)
+        if str(status.get("status", "")).lower() != "completed":
+            return _still_running("crawl", crawl_id, status)
+        limit = min(max(int(items_limit), 1), 100)
+        listing = client.get_crawl_pages(crawl_id, cursor=cursor, limit=limit)
+        entries = listing.get("pages") or listing.get("items") or []
+        total = status.get("pages_count")
+        return _job_results("crawl", crawl_id, status, listing, entries, cursor, total,
+                            client, format, max_characters)
+    except Exception as e:
+        raise LangChainException(f"Failed to get results for crawl {crawl_id}: {str(e)}")
